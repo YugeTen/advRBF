@@ -6,16 +6,18 @@ import torch.optim as optim
 import torch.nn.functional as F
 import torchvision.transforms as transforms
 from helper import load_ckpt
+from src.vanilla import Vanilla
+from src.vanilla_rbf import VanillaRBF
 
 device = torch.device("cuda:0")
-device_cpu = torch.device("cpu") #
-# TODO: fix GPU
 
 # parameters
-epoch_num = 10
+epoch_num = 50
+center_num = 10
+batch_size = 4
 print_iter = 2000
 pick_up_training = 1
-ckpt_name = "vanilla"
+ckpt_name = "vanilla_rbf"
 data_dir = './data'
 ckpt_dir = './ckpt'
 
@@ -26,48 +28,29 @@ transform = transforms.Compose(
 
 trainset = torchvision.datasets.CIFAR10(root=data_dir, train=True,
                                         download=True, transform=transform)
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=4,
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size,
                                           shuffle=True, num_workers=2)
 
 testset = torchvision.datasets.CIFAR10(root=data_dir, train=False,
                                        download=True, transform=transform)
-testloader = torch.utils.data.DataLoader(testset, batch_size=4,
+testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
                                          shuffle=False, num_workers=2)
 
 classes = ('plane', 'car', 'bird', 'cat',
            'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
 
-# CNN definition
-class Vanilla(nn.Module):
-    def __init__(self):
-        super(Vanilla, self).__init__()
-        self.conv1 = nn.Conv2d(3, 6, 5)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(6, 16, 5)
-        self.fc1 = nn.Linear(16 * 5 * 5, 120)
-        self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 10)
+net = VanillaRBF(batch_size, center_num)
+net.to(device)
 
-    def forward(self, x):
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
-        x = x.view(-1, 16 * 5 * 5)
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)
-        return x
-
-net = Vanilla()
 
 # loss
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+optimizer = optim.Adagrad(net.parameters(), lr=0.001)
 
 
 best_test_accuracy = 0
 pick_up_epoch = 0
-net.to(device)
 
 # train if no checkpoint
 if not os.path.exists(os.path.join(ckpt_dir,ckpt_name)) or pick_up_training:
@@ -132,16 +115,17 @@ net, optimizer, _, _ = load_ckpt(ckpt_dir, ckpt_name, net, optimizer)
 
 class_correct = list(0. for i in range(10))
 class_total = list(0. for i in range(10))
-with torch.no_grad():
-    for data in testloader:
-        images, labels = data
-        outputs = net(images)
-        _, predicted = torch.max(outputs, 1)
-        c = (predicted == labels).squeeze()
-        for i in range(4):
-            label = labels[i]
-            class_correct[label] += c[i].item()
-            class_total[label] += 1
+net.eval()
+for data in testloader:
+    images, labels = data
+    images, labels = images.to(device), labels.to(device)
+    outputs = net(images)
+    _, predicted = torch.max(outputs, 1)
+    c = (predicted == labels).squeeze()
+    for i in range(4):
+        label = labels[i]
+        class_correct[label] += c[i].item()
+        class_total[label] += 1
 
 
 for i in range(10):
