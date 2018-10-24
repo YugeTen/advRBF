@@ -5,13 +5,16 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import torchvision.transforms as transforms
+from helper import load_ckpt
+
 device = torch.device("cuda:0")
 device_cpu = torch.device("cpu") #
 # TODO: fix GPU
 
 # parameters
-epoch_num = 1
+epoch_num = 10
 print_iter = 2000
+pick_up_training = 1
 ckpt_name = "vanilla"
 data_dir = './data'
 ckpt_dir = './ckpt'
@@ -34,10 +37,11 @@ testloader = torch.utils.data.DataLoader(testset, batch_size=4,
 classes = ('plane', 'car', 'bird', 'cat',
            'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
+
 # CNN definition
-class Net(nn.Module):
+class Vanilla(nn.Module):
     def __init__(self):
-        super(Net, self).__init__()
+        super(Vanilla, self).__init__()
         self.conv1 = nn.Conv2d(3, 6, 5)
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(6, 16, 5)
@@ -54,8 +58,7 @@ class Net(nn.Module):
         x = self.fc3(x)
         return x
 
-
-net = Net()
+net = Vanilla()
 
 # loss
 criterion = nn.CrossEntropyLoss()
@@ -63,63 +66,69 @@ optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
 
 
 best_test_accuracy = 0
+pick_up_epoch = 0
+net.to(device)
 
-# train
-for epoch in range(epoch_num):
-    # training
-    net.to(device)
-    running_loss = 0.0
-    print("#"*12+"Epoch %d"%(epoch+1)+"#"*12)
+# train if no checkpoint
+if not os.path.exists(os.path.join(ckpt_dir,ckpt_name)) or pick_up_training:
+    if os.path.exists(os.path.join(ckpt_dir,ckpt_name)) and pick_up_training:
+        net, optimizer, pick_up_epoch, best_test_accuracy = \
+            load_ckpt(ckpt_dir, ckpt_name, net, optimizer)
 
-    for i, data in enumerate(trainloader, 0):
-        inputs, labels = data
-        inputs, labels = inputs.to(device), labels.to(device)
-        optimizer.zero_grad()
+    for epoch in range(pick_up_epoch,epoch_num):
+        # training
+        net.train()
 
-        outputs = net(inputs)
-        loss = criterion(outputs, labels)
-        loss.backward()
-        optimizer.step()
+        running_loss = 0.0
+        print("#"*12+"\t Epoch %d \t"%(epoch+1)+"#"*12)
 
-        running_loss += loss.item()
-        if i % print_iter == (print_iter-1):
-            print('[%d/%5d] loss: %.3f' %
-                  (epoch + 1, i + 1, running_loss / print_iter))
-            running_loss = 0.0
-        # TODO: ckpt
+        for i, data in enumerate(trainloader, 0):
+            inputs, labels = data
+            inputs, labels = inputs.to(device), labels.to(device)
+            optimizer.zero_grad()
 
-    # testing
-    net.to(device_cpu)
-    correct = 0
-    total = 0
+            outputs = net(inputs)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
 
-    with torch.no_grad():
+            running_loss += loss.item()
+            if i % print_iter == (print_iter-1):
+                print('[%d/%5d] loss: %.3f' %
+                      (epoch + 1, i + 1, running_loss / print_iter))
+                running_loss = 0.0
+
+        # testing
+        # net.to(device_cpu)
+        correct = 0
+        total = 0
+
+        net.eval()
         for data in testloader:
             images, labels = data
-            images, labels = images.to(device_cpu), labels.to(device_cpu)  #
+            images, labels = images.to(device), labels.to(device)
+            # images, labels = images.to(device_cpu), labels.to(device_cpu)  #
             outputs = net(images)
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
         test_accuracy = 100 * correct / total
-    print('Testing Accuracy: %d %%\n' % test_accuracy)
+        print('Testing Accuracy: %d%%\n' % test_accuracy)
 
-    # save best model
-    if test_accuracy > best_test_accuracy:
-        torch.save(net.state_dict(), os.path.join(ckpt_dir, ckpt_name))
+        # save best model
+        if test_accuracy > best_test_accuracy:
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': net.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'accuracy': test_accuracy,
+            }, os.path.join(ckpt_dir, ckpt_name))
 
-print('Finished Training')
-
-
-
-
-
-
-
+    print('Finished Training')
 
 
 
-
+net, optimizer, _, _ = load_ckpt(ckpt_dir, ckpt_name, net, optimizer)
 
 class_correct = list(0. for i in range(10))
 class_total = list(0. for i in range(10))
@@ -138,3 +147,4 @@ with torch.no_grad():
 for i in range(10):
     print('Accuracy of %5s : %2d %%' % (
         classes[i], 100 * class_correct[i] / class_total[i]))
+
