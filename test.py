@@ -5,43 +5,34 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import torchvision.transforms as transforms
-from helper import load_ckpt
+from helper import load_ckpt, preprocessing
 from src.vanilla import Vanilla
 from src.vanilla_rbf import VanillaRBF
 
 device = torch.device("cuda:0")
 
 # parameters
-epoch_num = 50
+epoch_num = 1
 center_num = 10
-batch_size = 4
-print_iter = 2000
-pick_up_training = 1
+batch_size = 32
+print_iter = 2000/(batch_size/4)
+pick_up_training = 0
 ckpt_name = "vanilla_rbf"
 data_dir = './data'
 ckpt_dir = './ckpt'
-
-# data preprocessing
-transform = transforms.Compose(
-    [transforms.ToTensor(),
-     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-
-trainset = torchvision.datasets.CIFAR10(root=data_dir, train=True,
-                                        download=True, transform=transform)
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size,
-                                          shuffle=True, num_workers=2)
-
-testset = torchvision.datasets.CIFAR10(root=data_dir, train=False,
-                                       download=True, transform=transform)
-testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
-                                         shuffle=False, num_workers=2)
-
-classes = ('plane', 'car', 'bird', 'cat',
-           'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+dataset = "cifar-10"
 
 
-net = VanillaRBF(batch_size, center_num)
+trainloader, testloader, classes = preprocessing(data_dir, batch_size, dataset)
+
+
+if ckpt_name == "vanilla":
+    net = Vanilla()
+elif ckpt_name == "vanilla_rbf":
+    net = VanillaRBF(center_num)
 net.to(device)
+for p in net.state_dict():
+    print(p)
 
 
 # loss
@@ -61,7 +52,8 @@ if not os.path.exists(os.path.join(ckpt_dir,ckpt_name)) or pick_up_training:
     for epoch in range(pick_up_epoch,epoch_num):
         # training
         net.train()
-
+        correct = 0
+        total = 0
         running_loss = 0.0
         print("#"*12+"\t Epoch %d \t"%(epoch+1)+"#"*12)
 
@@ -76,16 +68,23 @@ if not os.path.exists(os.path.join(ckpt_dir,ckpt_name)) or pick_up_training:
             optimizer.step()
 
             running_loss += loss.item()
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+
             if i % print_iter == (print_iter-1):
                 print('[%d/%5d] loss: %.3f' %
                       (epoch + 1, i + 1, running_loss / print_iter))
                 running_loss = 0.0
+        train_accuracy = 100 * correct / total
+        print('Training Accuracy: %d%%' % train_accuracy)
+
 
         # testing
         # net.to(device_cpu)
         correct = 0
         total = 0
-
         net.eval()
         for data in testloader:
             images, labels = data
@@ -109,9 +108,12 @@ if not os.path.exists(os.path.join(ckpt_dir,ckpt_name)) or pick_up_training:
 
     print('Finished Training')
 
-
-
-net, optimizer, _, _ = load_ckpt(ckpt_dir, ckpt_name, net, optimizer)
+    for p in net.state_dict():
+        print(p)
+else:
+    net, optimizer, _, _ = load_ckpt(ckpt_dir, ckpt_name, net, optimizer)
+    for p in net.state_dict():
+        print(p)
 
 class_correct = list(0. for i in range(10))
 class_total = list(0. for i in range(10))
@@ -120,11 +122,15 @@ for data in testloader:
     images, labels = data
     images, labels = images.to(device), labels.to(device)
     outputs = net(images)
+    # print(outputs.size())
     _, predicted = torch.max(outputs, 1)
+    print(predicted)
+    print(labels)
     c = (predicted == labels).squeeze()
-    for i in range(4):
+    # print(c)
+    for i,ci in enumerate(c):
         label = labels[i]
-        class_correct[label] += c[i].item()
+        class_correct[label] += ci.item()
         class_total[label] += 1
 
 
@@ -132,3 +138,21 @@ for i in range(10):
     print('Accuracy of %5s : %2d %%' % (
         classes[i], 100 * class_correct[i] / class_total[i]))
 
+
+# # data preprocessing
+# transform = transforms.Compose(
+#     [transforms.ToTensor(),
+#      transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+#
+# trainset = torchvision.datasets.CIFAR10(root=data_dir, train=True,
+#                                         download=True, transform=transform)
+# trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size,
+#                                           shuffle=True, num_workers=2)
+#
+# testset = torchvision.datasets.CIFAR10(root=data_dir, train=False,
+#                                        download=True, transform=transform)
+# testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
+#                                          shuffle=False, num_workers=2)
+#
+# classes = ('plane', 'car', 'bird', 'cat',
+#            'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
