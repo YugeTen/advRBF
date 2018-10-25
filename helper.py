@@ -6,6 +6,8 @@ import pickle
 
 
 def preprocessing(data_dir, batch_size, dataset="cifar-10"):
+    with open(os.path.join(data_dir,dataset+"-python","meta"), "rb") as f:
+        meta = pickle.load(f)
 
     if dataset == "cifar-10":
         transform = transforms.Compose(
@@ -16,25 +18,26 @@ def preprocessing(data_dir, batch_size, dataset="cifar-10"):
                                                 download=True, transform=transform)
         testset = torchvision.datasets.CIFAR10(root=data_dir, train=False,
                                                download=True, transform=transform)
+        classes = meta['label_names']
 
     elif dataset == "cifar-100":
         transform = transforms.Compose(
             [transforms.ToTensor(),
              transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
-        trainset = torchvision.datasets.CIFAR10(root=data_dir, train=True,
+        trainset = torchvision.datasets.CIFAR100(root=data_dir, train=True,
                                                 download=True, transform=transform)
-        testset = torchvision.datasets.CIFAR10(root=data_dir, train=False,
+        testset = torchvision.datasets.CIFAR100(root=data_dir, train=False,
                                                download=True, transform=transform)
+        classes = meta['fine_label_names']
 
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size,
                                               shuffle=True, num_workers=2)
     testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
                                              shuffle=False, num_workers=2)
-    with open(os.path.join(data_dir,dataset+"-batches-py","batches.meta"), "rb") as f:
-        meta = pickle.load(f)
 
-    return trainloader, testloader, meta['label_names']
+
+    return trainloader, testloader, meta['fine_label_names']
 
 
 def load_ckpt(ckpt_dir, ckpt_name, net, optimizer):

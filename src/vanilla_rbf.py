@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 
 class VanillaRBF(nn.Module):
-    def __init__(self, center_num):
+    def __init__(self, D_out, center_num):
         super(VanillaRBF, self).__init__()
         self.conv1 = nn.Conv2d(3, 6, 5)
         self.pool = nn.MaxPool2d(2, 2)
@@ -17,7 +17,7 @@ class VanillaRBF(nn.Module):
 
         self.rbf = RBF(84, center_num)
 
-        self.fc3 = nn.Linear(84, 10)
+        self.fc3 = nn.Linear(84, D_out)
 
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x)))

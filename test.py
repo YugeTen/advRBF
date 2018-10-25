@@ -17,22 +17,22 @@ center_num = 10
 batch_size = 32
 print_iter = 2000/(batch_size/4)
 pick_up_training = 1
-ckpt_name = "vanilla"
+ckpt_name = "vanilla_rbf"
 data_dir = './data'
-ckpt_dir = './ckpt'
-dataset = "cifar-10"
+ckpt_dir_name = './ckpt'
+dataset = "cifar-100"
 
 
+ckpt_dir = os.path.join(ckpt_dir_name, dataset)
 trainloader, testloader, classes = preprocessing(data_dir, batch_size, dataset)
 
 
 if ckpt_name == "vanilla":
-    net = Vanilla()
+    net = Vanilla(D_out=len(classes))
 elif ckpt_name == "vanilla_rbf":
-    net = VanillaRBF(center_num)
+    net = VanillaRBF(D_out=len(classes), center_num=center_num)
 net.to(device)
-for p in net.state_dict():
-    print(p)
+
 
 
 # loss
@@ -61,7 +61,6 @@ if not os.path.exists(os.path.join(ckpt_dir,ckpt_name)) or pick_up_training:
             inputs, labels = data
             inputs, labels = inputs.to(device), labels.to(device)
             optimizer.zero_grad()
-
             outputs = net(inputs)
             loss = criterion(outputs, labels)
             loss.backward()
@@ -107,8 +106,8 @@ if not os.path.exists(os.path.join(ckpt_dir,ckpt_name)) or pick_up_training:
     print('Finished Training')
 
 else:
-    net, optimizer, _, _ = load_ckpt(ckpt_dir, ckpt_name, net, optimizer)
-
+    net, optimizer, epoch, test_accuracy = load_ckpt(ckpt_dir, ckpt_name, net, optimizer)
+    print("Testing accuracy of epoch %d was the highest in training, at: %d%%" % (epoch, test_accuracy))
 
 class_correct = [0.0]*len(classes)
 class_total = [0.0]*len(classes)
@@ -123,7 +122,6 @@ for data in testloader:
         label = labels[i]
         class_correct[label] += ci.item()
         class_total[label] += 1
-
 
 for i, label in enumerate(classes):
     print('Accuracy of %5s : %2d %%' % (
