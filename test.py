@@ -12,12 +12,12 @@ from src.vanilla_rbf import VanillaRBF
 device = torch.device("cuda:0")
 
 # parameters
-epoch_num = 1
+epoch_num = 200
 center_num = 10
 batch_size = 32
 print_iter = 2000/(batch_size/4)
-pick_up_training = 0
-ckpt_name = "vanilla_rbf"
+pick_up_training = 1
+ckpt_name = "vanilla"
 data_dir = './data'
 ckpt_dir = './ckpt'
 dataset = "cifar-10"
@@ -82,14 +82,12 @@ if not os.path.exists(os.path.join(ckpt_dir,ckpt_name)) or pick_up_training:
 
 
         # testing
-        # net.to(device_cpu)
         correct = 0
         total = 0
         net.eval()
         for data in testloader:
             images, labels = data
             images, labels = images.to(device), labels.to(device)
-            # images, labels = images.to(device_cpu), labels.to(device_cpu)  #
             outputs = net(images)
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
@@ -108,51 +106,27 @@ if not os.path.exists(os.path.join(ckpt_dir,ckpt_name)) or pick_up_training:
 
     print('Finished Training')
 
-    for p in net.state_dict():
-        print(p)
 else:
     net, optimizer, _, _ = load_ckpt(ckpt_dir, ckpt_name, net, optimizer)
-    for p in net.state_dict():
-        print(p)
 
-class_correct = list(0. for i in range(10))
-class_total = list(0. for i in range(10))
+
+class_correct = [0.0]*len(classes)
+class_total = [0.0]*len(classes)
 net.eval()
 for data in testloader:
     images, labels = data
     images, labels = images.to(device), labels.to(device)
     outputs = net(images)
-    # print(outputs.size())
     _, predicted = torch.max(outputs, 1)
-    print(predicted)
-    print(labels)
     c = (predicted == labels).squeeze()
-    # print(c)
     for i,ci in enumerate(c):
         label = labels[i]
         class_correct[label] += ci.item()
         class_total[label] += 1
 
 
-for i in range(10):
+for i, label in enumerate(classes):
     print('Accuracy of %5s : %2d %%' % (
-        classes[i], 100 * class_correct[i] / class_total[i]))
+        label, 100 * class_correct[i] / class_total[i]))
 
 
-# # data preprocessing
-# transform = transforms.Compose(
-#     [transforms.ToTensor(),
-#      transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-#
-# trainset = torchvision.datasets.CIFAR10(root=data_dir, train=True,
-#                                         download=True, transform=transform)
-# trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size,
-#                                           shuffle=True, num_workers=2)
-#
-# testset = torchvision.datasets.CIFAR10(root=data_dir, train=False,
-#                                        download=True, transform=transform)
-# testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
-#                                          shuffle=False, num_workers=2)
-#
-# classes = ('plane', 'car', 'bird', 'cat',
-#            'deer', 'dog', 'frog', 'horse', 'ship', 'truck')

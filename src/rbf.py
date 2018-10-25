@@ -4,22 +4,26 @@ import torch.nn.functional as F
 
 
 class RBF(nn.Module):
-    def __init__(self, center_num):
+    def __init__(self, D_in, center_num):
         super(RBF, self).__init__()
-        self.a = nn.Parameter(torch.zeros(1))
-        self.b = nn.Parameter(torch.zeros(1))
-        self.c = nn.Parameter(torch.zeros(1))
 
-        mu = nn.Parameter(torch.cuda.FloatTensor(84, center_num).normal_())
-        sigma = nn.Parameter(torch.cuda.FloatTensor(center_num).normal_().requires_grad_().unsqueeze(0)
-        self.w = torch.cuda.FloatTensor(center_num).normal_().requires_grad_().unsqueeze(0)
-        self.mu = mu.expand(-1, 84, center_num)
-        self.sigma = sigma.expand(-1, center_num)
+
+        self.mu = nn.Parameter(torch.cuda.FloatTensor(D_in, center_num).normal_())
+        self.sigma = nn.Parameter(torch.cuda.FloatTensor(center_num).normal_())
+        self.w = nn.Parameter(torch.cuda.FloatTensor(center_num).normal_())
         self.center_num = center_num
 
+
     def forward(self, x):
-        # unfortunately we don't have automatic broadcasting yet
-        a = self.a.expand_as(x)
-        b = self.b.expand_as(x)
-        c = self.c.expand_as(x)
-        return a * torch.exp((x - b)^2 / c)
+        # x: batch x length
+        # logits: batch x length x center
+        # outputs: batch x length
+        x = x.unsqueeze(-1)
+        mu = self.mu.repeat(x.size(0), 1, 1)
+        sigma = self.sigma.repeat(x.size(0), x.size(1), 1)
+        w = self.w.view(1,1,self.w.size(0))
+        logits = torch.exp(-(x-mu)**2/sigma**2)
+        x = torch.sum(w*logits, dim=-1)
+
+        return x
+
