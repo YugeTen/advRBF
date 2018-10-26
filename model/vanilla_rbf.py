@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
-from src.rbf import RBF
+from model.rbf import RBF
 import torch.nn.functional as F
+from utils import kaiming_init, xavier_init
 
 
 
@@ -30,5 +31,12 @@ class VanillaRBF(nn.Module):
         x = self.fc3(x)
         return x
 
+    def weight_init(self, _type='kaiming'):
+        if _type == 'kaiming':
+            for ms in self._modules:
+                kaiming_init(self._modules[ms].parameters())
+        elif _type == 'xavier':
+            for ms in self._modules:
+                xavier_init(self._modules[ms].parameters())
 
 

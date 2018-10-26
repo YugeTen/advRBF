@@ -1,5 +1,6 @@
 import torch.nn as nn
 import torch.nn.functional as F
+from utils import kaiming_init, xavier_init
 
 class Vanilla(nn.Module):
     def __init__(self, D_out):
@@ -19,3 +20,11 @@ class Vanilla(nn.Module):
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
         return x
+
+    def weight_init(self, _type='kaiming'):
+        if _type == 'kaiming':
+            for ms in self._modules:
+                kaiming_init(self._modules[ms].parameters())
+        elif _type == 'xavier':
+            for ms in self._modules:
+                xavier_init(self._modules[ms].parameters())
