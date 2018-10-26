@@ -1,130 +1,58 @@
-import os
 import torch
-import torchvision
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
-import torchvision.transforms as transforms
-from helper import load_ckpt, preprocessing
-from src.vanilla import Vanilla
-from src.vanilla_rbf import VanillaRBF
+import argparse
+import numpy as np
+from utils import str2bool
+from train import Solver
 
-device = torch.device("cuda:0")
+def main(args):
+    torch.backends.cudnn.enabled = True
+    torch.backends.cudnn.benchmark = True
 
-# parameters
-epoch_num = 200
-center_num = 10
-batch_size = 32
-print_iter = 2000/(batch_size/4)
-pick_up_training = 1
-ckpt_name = "vanilla_rbf"
-data_dir = './data'
-ckpt_dir_name = './ckpt'
-dataset = "cifar-100"
+    seed = args.seed
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    np.random.seed(seed)
 
+    np.set_printoptions(precision=4)
+    torch.set_printoptions(precision=4)
 
-ckpt_dir = os.path.join(ckpt_dir_name, dataset)
-trainloader, testloader, classes = preprocessing(data_dir, batch_size, dataset)
+    print()
+    print('[ARGUMENTS]')
+    print(args)
+    print()
 
-
-if ckpt_name == "vanilla":
-    net = Vanilla(D_out=len(classes))
-elif ckpt_name == "vanilla_rbf":
-    net = VanillaRBF(D_out=len(classes), center_num=center_num)
-net.to(device)
-
-
-
-# loss
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adagrad(net.parameters(), lr=0.001)
-
-
-best_test_accuracy = 0
-pick_up_epoch = 0
-
-# train if no checkpoint
-if not os.path.exists(os.path.join(ckpt_dir,ckpt_name)) or pick_up_training:
-    if os.path.exists(os.path.join(ckpt_dir,ckpt_name)) and pick_up_training:
-        net, optimizer, pick_up_epoch, best_test_accuracy = \
-            load_ckpt(ckpt_dir, ckpt_name, net, optimizer)
-
-    for epoch in range(pick_up_epoch,epoch_num):
-        # training
+    net = Solver(args)
+    if args.mode == 'train':
         net.train()
-        correct = 0
-        total = 0
-        running_loss = 0.0
-        print("#"*12+"\t Epoch %d \t"%(epoch+1)+"#"*12)
+    elif args.mode == 'test':
+        net.test()
+    # TODO:elif generate -- adv
+    else: return
 
-        for i, data in enumerate(trainloader, 0):
-            inputs, labels = data
-            inputs, labels = inputs.to(device), labels.to(device)
-            optimizer.zero_grad()
-            outputs = net(inputs)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
+    print('[*] finished!')
 
-            running_loss += loss.item()
-            _, predicted = torch.max(outputs.data, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='RBF trainer')
+    parser.add_argument('--model_name', type=str, default='vanilla_rbf')
+    parser.add_argument('--dataset', type=str, default='cifar-10')
+    parser.add_argument('--D_out', type=int, default=10)
+    parser.add_argument('--mode', type=str, default='train')
+    parser.add_argument('--load_ckpt', type=bool, default=True, help='load from checkpoint')
+    parser.add_argument('--epoch', type=int, default=200, help='epoch size')
 
 
-            if i % print_iter == (print_iter-1):
-                print('[%d/%5d] loss: %.3f' %
-                      (epoch + 1, i + 1, running_loss / print_iter))
-                running_loss = 0.0
-        train_accuracy = 100 * correct / total
-        print('Training Accuracy: %d%%' % train_accuracy)
+    parser.add_argument('--center_num', type=int, default=10)
+    parser.add_argument('--batch_size', type=int, default=32, help='mini-batch size')
+    parser.add_argument('--lr', type=float, default=2e-4, help='learning rate')
 
+    parser.add_argument('--print_iter', type=int, default=200, help='')
+    parser.add_argument('--data_dir', type=str, default='./data')
+    parser.add_argument('--ckpt_dir', type=str, default='./ckpt')
+    parser.add_argument('--seed', type=int, default=1, help='random seed')
+    parser.add_argument('--cuda', type=str2bool, default=True, help='enable cuda')
 
-        # testing
-        correct = 0
-        total = 0
-        net.eval()
-        for data in testloader:
-            images, labels = data
-            images, labels = images.to(device), labels.to(device)
-            outputs = net(images)
-            _, predicted = torch.max(outputs.data, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
-        test_accuracy = 100 * correct / total
-        print('Testing Accuracy: %d%%\n' % test_accuracy)
+    args = parser.parse_args()
+    main(args)
 
-        # save best model
-        if test_accuracy > best_test_accuracy:
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': net.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'accuracy': test_accuracy,
-            }, os.path.join(ckpt_dir, ckpt_name))
-
-    print('Finished Training')
-
-else:
-    net, optimizer, epoch, test_accuracy = load_ckpt(ckpt_dir, ckpt_name, net, optimizer)
-    print("Testing accuracy of epoch %d was the highest in training, at: %d%%" % (epoch, test_accuracy))
-
-class_correct = [0.0]*len(classes)
-class_total = [0.0]*len(classes)
-net.eval()
-for data in testloader:
-    images, labels = data
-    images, labels = images.to(device), labels.to(device)
-    outputs = net(images)
-    _, predicted = torch.max(outputs, 1)
-    c = (predicted == labels).squeeze()
-    for i,ci in enumerate(c):
-        label = labels[i]
-        class_correct[label] += ci.item()
-        class_total[label] += 1
-
-for i, label in enumerate(classes):
-    print('Accuracy of %5s : %2d %%' % (
-        label, 100 * class_correct[i] / class_total[i]))
 
 
