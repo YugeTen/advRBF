@@ -7,10 +7,10 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 from model.vanilla import Vanilla
 from model.vanilla_rbf import VanillaRBF
-from utils import cuda, preprocessing
+from utils import cuda
 from pathlib import Path
 from torch.autograd import Variable
-
+from model.data_loader import get_loader
 
 
 class Solver(object):
@@ -27,13 +27,21 @@ class Solver(object):
         self.lr = args.lr
         self.print_iter = args.print_iter
         self.data_dir = Path(args.data_dir)
-        self.data_loader, self.classes = preprocessing(self.data_dir, self.batch_size, self.dataset)
+        self.random_seed = args.random_seed
+        self.shuffle = args.shuffle
+        self.test_size = args.test_size
+        self.data_loader, self.classes = get_loader(self.data_dir,
+                                                    self.batch_size,
+                                                    self.dataset,
+                                                    self.random_seed,
+                                                    self.shuffle,
+                                                    self.test_size)
         self.mode = args.mode
         self.global_epoch = 0
         self.global_iter = 0
 
 
-        self.ckpt_dir = Path(args.ckpt_dir).joinpath(args.data_dir)
+        self.ckpt_dir = Path(args.ckpt_dir).joinpath(args.dataset)
         if not self.ckpt_dir.exists():
             self.ckpt_dir.mkdir(parents=True, exist_ok=True)
         if not self.data_dir.exists():
@@ -144,7 +152,7 @@ class Solver(object):
             print('Training Accuracy: %d%%' % train_accuracy)
             self.test()
         print(" [*] Training Finished!")
-        self.print_summary=True
+        self.print_summary_=True
         self.test()
 
     def test(self):
@@ -173,7 +181,7 @@ class Solver(object):
             self.history['iter'] = self.global_iter
             self.save_checkpoint()
 
-        if self.print_summary:
+        if self.print_summary_:
             print("Best test accuracy achieved at epoch %d: %d%%"
                   % (self.history['epoch'], self.history['acc']))
         else:

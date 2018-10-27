@@ -2,7 +2,7 @@ import torch
 import argparse
 import numpy as np
 from utils import str2bool
-from train import Solver
+from solver import Solver
 
 def main(args):
     torch.backends.cudnn.enabled = True
@@ -34,10 +34,10 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='RBF trainer')
     parser.add_argument('--model_name', type=str, default='vanilla_rbf')
-    parser.add_argument('--dataset', type=str, default='cifar-10')
+    parser.add_argument('--dataset', type=str, default='catvdog')
     parser.add_argument('--D_out', type=int, default=10)
     parser.add_argument('--mode', type=str, default='train')
-    parser.add_argument('--load_ckpt', type=bool, default=True, help='load from checkpoint')
+    parser.add_argument('--load_ckpt', type=bool, default=True, help='load from checkpoint') # TODO: change to an address
     parser.add_argument('--epoch', type=int, default=200, help='epoch size')
 
 
@@ -50,6 +50,10 @@ if __name__ == "__main__":
     parser.add_argument('--ckpt_dir', type=str, default='./ckpt')
     parser.add_argument('--seed', type=int, default=1, help='random seed')
     parser.add_argument('--cuda', type=str2bool, default=True, help='enable cuda')
+    parser.add_argument('--random_seed', type=int, default=1)
+    parser.add_argument('--test_size', type=float, default=0.1)
+    parser.add_argument('--shuffle', type=bool, default=True)
+
 
     args = parser.parse_args()
     main(args)
