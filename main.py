@@ -28,19 +28,22 @@ def main(args):
         net.test()
     elif args.mode == 'attack':
         net.attack()
+    elif args.mode == 'ftt': # from the top
+        net.train()
+        net.test()
+        net.attack()
     else: return
 
     print('[*] finished!')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='RBF trainer')
-    parser.add_argument('--model_name', type=str, default='vanilla')
-    parser.add_argument('--dataset', type=str, default='cifar-10')
-    parser.add_argument('--D_out', type=int, default=10)
+    parser.add_argument('--model_name', type=str, default='vanilla_rbf')
+    parser.add_argument('--dataset', type=str, default='cifar-100')
+    parser.add_argument('--D_out', type=int, default=100)
     parser.add_argument('--mode', type=str, default='attack')
     parser.add_argument('--load_ckpt', type=bool, default=True, help='load from checkpoint') # TODO: change to an address
     parser.add_argument('--epoch', type=int, default=50, help='epoch size')
-
 
     parser.add_argument('--center_num', type=int, default=10)
     parser.add_argument('--batch_size', type=int, default=32, help='mini-batch size')
@@ -54,6 +57,14 @@ if __name__ == "__main__":
     parser.add_argument('--random_seed', type=int, default=1)
     parser.add_argument('--test_size', type=float, default=0.1)
     parser.add_argument('--shuffle', type=bool, default=True)
+
+    # args for fgsm/ifgsm:
+    parser.add_argument('--num_sample', type=int, default=1000)
+    parser.add_argument('--target', type=int, default=-1)
+    parser.add_argument('--epsilon', type=float, default=0.005)
+    parser.add_argument('--alpha', type=float, default=2/255)
+    parser.add_argument('--iteration', type=int, default=0, help = 'iteration of ifgsm attack -- set as 0 if fgsm')
+
 
 
     args = parser.parse_args()

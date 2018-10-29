@@ -52,6 +52,13 @@ class Solver(object):
 
         self.print_summary_ = False if self.mode == 'train' else True
 
+        # FGSM parameters
+        self.num_sample = args.num_sample
+        self.target = args.target
+        self.epsilon = args.epsilon
+        self.alpha = args.alpha
+        self.iteration = args.iteration
+
 
         # Histories
         self.history = dict()
@@ -130,6 +137,8 @@ class Solver(object):
             running_loss = 0.0
             print("#"*12+"\t Epoch %d \t"%(self.global_epoch)+"#"*12)
 
+            # for p,name in zip(list(self.net.parameters()),self.net.state_dict()):
+            #     print("{}: {}".format(name,p.size()))
             for batch_idx, (inputs, labels) in enumerate(self.data_loader['train']):
                 self.global_iter += 1
 
@@ -190,12 +199,12 @@ class Solver(object):
         else:
             self.set_mode('train')
 
-    def attack(self, num_sample=100, target=-1, epsilon=0.03, alpha=2/255, iteration=None):
+    def attack(self):
         self.set_mode('eval')
 
-        x_true, y_true = self.sample_data(num_sample) # get 100 datapoints & groundtruths
-        if isinstance(target, int) and (target in range(self.D_out)):
-            y_target = torch.LongTensor(y_true.size()).fill_(target)
+        x_true, y_true = self.sample_data(self.num_sample) # get 100 datapoints & groundtruths
+        if isinstance(self.target, int) and (self.target in range(self.D_out)):
+            y_target = torch.LongTensor(y_true.size()).fill_(self.target)
         else:
             y_target = None
 
@@ -205,25 +214,27 @@ class Solver(object):
         # set y_target as a variable (if there is one)
         if y_target:
             targeted = True
-            y_target = Variable(cuda(y_target, self.cuda), requires_grad=False)
+            y = Variable(cuda(y_target, self.device), requires_grad=False)
+
         else:
             targeted = False
+            y = y_true
 
         h = self.net(x_true)
         prediction = h.max(1)[1]
         accuracy = torch.eq(prediction, y_true).float().mean()
         cost = F.cross_entropy(h, y_true)
 
-        # x_adv, h_adv, h = self.attack_model.i_fgsm(x_true, y_target, targeted, epsilon, alpha, iteration) \
-        # if iteration else self.attack_model.fgsm(x_true, y_true, targeted, epsilon)
-        x_adv, h_adv, h = self.attack_model.fgsm(x_true, y_true, targeted, epsilon)
+        x_adv, h_adv, h = self.attack_model.i_fgsm(x_true, y, targeted, self.epsilon, self.alpha, self.iteration) \
+        if self.iteration else self.attack_model.fgsm(x_true, y, targeted, self.epsilon)
+        # x_adv, h_adv, h = self.attack_model.fgsm(x_true, y_true, targeted, epsilon)
 
         prediction_adv = h_adv.max(1)[1]
         accuracy_adv = torch.eq(prediction_adv, y_true).float().mean()
         cost_adv = F.cross_entropy(h_adv, y_true)
 
-        print('[BEFORE] accuracy : {:.2f} cost : {:.3f}'.format(accuracy, cost))
-        print('[AFTER] accuracy : {:.2f} cost : {:.3f}'.format(accuracy_adv, cost_adv))
+        print('[BEFORE] accuracy : {:.0f}% cost : {:.3f}'.format(accuracy*100, cost))
+        print('[AFTER] accuracy : {:.0f}% cost : {:.3f}'.format(accuracy_adv*100, cost_adv))
 
         self.set_mode('train')
 
