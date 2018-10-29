@@ -29,7 +29,7 @@ class Attack(object):
         cost.backward()
 
         x_adv.grad.sign_()
-        x_adv -= eps*x_adv.grad
+        x_adv = x_adv - eps*x_adv.grad
         x_adv = torch.clamp(x_adv, x_adv_val_min, x_adv_val_max)
 
         h = self.net(x) # h: network response to original input

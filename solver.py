@@ -2,6 +2,7 @@ import os
 import torch
 import torchvision
 import torch.nn as nn
+import numpy as np
 import torch.optim as optim
 import torch.nn.functional as F
 import torchvision.transforms as transforms
@@ -13,6 +14,7 @@ from torch.autograd import Variable
 from model.data_loader import get_loader
 from torchvision.utils import save_image
 from model.attack import Attack
+
 
 class Solver(object):
     def __init__(self, args):
@@ -64,7 +66,7 @@ class Solver(object):
         self.criterion = nn.CrossEntropyLoss()
 
         criterion = nn.CrossEntropyLoss()
-        self.attack = Attack(self.net, criterion=criterion)
+        self.attack_model = Attack(self.net, criterion=criterion)
 
     def model_init(self):
         # GPU
@@ -197,8 +199,8 @@ class Solver(object):
         else:
             y_target = None
 
-        x_true = Variable(cuda(x_true, self.cuda), requires_grad=True)
-        y_true = Variable(cuda(y_true, self.cuda), requires_grad=False)
+        x_true = Variable(cuda(x_true, self.device), requires_grad=True)
+        y_true = Variable(cuda(y_true, self.device), requires_grad=False)
 
         # set y_target as a variable (if there is one)
         if y_target:
@@ -212,9 +214,9 @@ class Solver(object):
         accuracy = torch.eq(prediction, y_true).float().mean()
         cost = F.cross_entropy(h, y_true)
 
-        # x_adv, h_adv, h = self.attack.i_fgsm(x_true, y_target, targeted, epsilon, alpha, iteration) \
-        # if iteration else self.attack.fgsm(x_true, y_target, targeted, epsilon)
-        x_adv, h_adv, h = self.attack.fgsm(x_true, y_target, targeted, epsilon)
+        # x_adv, h_adv, h = self.attack_model.i_fgsm(x_true, y_target, targeted, epsilon, alpha, iteration) \
+        # if iteration else self.attack_model.fgsm(x_true, y_true, targeted, epsilon)
+        x_adv, h_adv, h = self.attack_model.fgsm(x_true, y_true, targeted, epsilon)
 
         prediction_adv = h_adv.max(1)[1]
         accuracy_adv = torch.eq(prediction_adv, y_true).float().mean()
@@ -230,12 +232,15 @@ class Solver(object):
 
     def sample_data(self, num_sample=100):
         """sample num_sample instances of data (duh)"""
-        total = len(self.data_loader['test'].dataset) # TODO: does this work????
-        seed = torch.FloatTensor(num_sample).uniform_(1, total).long()
+        total = len(self.data_loader['test'].dataset) # get total number of test examples available
+        seed = torch.FloatTensor(num_sample).uniform_(1, total).long() # randomly chooses 100 indices out of the "total" number of example
 
         x = self.data_loader['test'].dataset.test_data[seed]
-        x = self.scale(x.float().unsqueeze(1).div(255))
-        y = self.data_loader['test'].dataset.test_labels[seed]
+        x = torch.from_numpy(x).permute(0, 3, 1, 2)
+        x = self.scale(x.float().div(255))
+
+        y_test = np.asarray(self.data_loader['test'].dataset.test_labels)
+        y = torch.from_numpy(y_test[seed])
 
         return x, y
 
