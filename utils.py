@@ -1,8 +1,8 @@
 import os, argparse
 import torch
 import torchvision
-import torchvision.transforms as transforms
 import pickle
+from pathlib import Path
 import torch.nn as nn
 
 
@@ -52,3 +52,34 @@ def kaiming_init(ms):
             m.weight.data.fill_(1)
             if m.bias.data:
                 m.bias.data.zero_()
+
+def rm_dir(dir_path):
+    p = Path(dir_path).resolve()
+    if (not p.is_file()) and (not p.is_dir()) :
+        print('It is not path for file nor directory :',p)
+        return
+
+    paths = list(p.iterdir())
+    if (len(paths) == 0) and p.is_dir() :
+        p.rmdir()
+        print('removed empty dir :',p)
+
+    else :
+        for path in paths :
+            if path.is_file() :
+                path.unlink()
+                print('removed file :',path)
+            else:
+                rm_dir(path)
+        p.rmdir()
+        print('removed empty dir :',p)
+
+def where(cond, x, y):
+    """
+    code from :
+        https://discuss.pytorch.org/t/how-can-i-do-the-operation-the-same-as-np-where/1329/8
+    """
+    cond = cond.float()
+    return (cond*x) + ((1-cond)*y)
+
+

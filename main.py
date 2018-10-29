@@ -26,19 +26,20 @@ def main(args):
         net.train()
     elif args.mode == 'test':
         net.test()
-    # TODO:elif generate -- adv
+    elif args.mode == 'attack':
+        net.attack()
     else: return
 
     print('[*] finished!')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='RBF trainer')
-    parser.add_argument('--model_name', type=str, default='vanilla_rbf')
-    parser.add_argument('--dataset', type=str, default='catvdog')
+    parser.add_argument('--model_name', type=str, default='vanilla')
+    parser.add_argument('--dataset', type=str, default='cifar-10')
     parser.add_argument('--D_out', type=int, default=10)
     parser.add_argument('--mode', type=str, default='train')
     parser.add_argument('--load_ckpt', type=bool, default=True, help='load from checkpoint') # TODO: change to an address
-    parser.add_argument('--epoch', type=int, default=200, help='epoch size')
+    parser.add_argument('--epoch', type=int, default=50, help='epoch size')
 
 
     parser.add_argument('--center_num', type=int, default=10)

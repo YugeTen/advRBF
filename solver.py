@@ -7,11 +7,12 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 from model.vanilla import Vanilla
 from model.vanilla_rbf import VanillaRBF
-from utils import cuda
+from utils import cuda, where
 from pathlib import Path
 from torch.autograd import Variable
 from model.data_loader import get_loader
-
+from torchvision.utils import save_image
+from model.attack import Attack
 
 class Solver(object):
     def __init__(self, args):
@@ -47,7 +48,7 @@ class Solver(object):
         if not self.data_dir.exists():
             self.data_dir.mkdir(parents=True, exist_ok=True)
 
-        self.print_summary_ = True if self.mode == 'test' else False
+        self.print_summary_ = False if self.mode == 'train' else True
 
 
         # Histories
@@ -62,8 +63,8 @@ class Solver(object):
             self.load_checkpoint()
         self.criterion = nn.CrossEntropyLoss()
 
-        # criterion = nn.CrossEntropyLoss() TODO
-        # self.attack = Attack(self.net, criterion=criterion)
+        criterion = nn.CrossEntropyLoss()
+        self.attack = Attack(self.net, criterion=criterion)
 
     def model_init(self):
         # GPU
@@ -186,6 +187,61 @@ class Solver(object):
                   % (self.history['epoch'], self.history['acc']))
         else:
             self.set_mode('train')
+
+    def attack(self, num_sample=100, target=-1, epsilon=0.03, alpha=2/255, iteration=None):
+        self.set_mode('eval')
+
+        x_true, y_true = self.sample_data(num_sample) # get 100 datapoints & groundtruths
+        if isinstance(target, int) and (target in range(self.D_out)):
+            y_target = torch.LongTensor(y_true.size()).fill_(target)
+        else:
+            y_target = None
+
+        x_true = Variable(cuda(x_true, self.cuda), requires_grad=True)
+        y_true = Variable(cuda(y_true, self.cuda), requires_grad=False)
+
+        # set y_target as a variable (if there is one)
+        if y_target:
+            targeted = True
+            y_target = Variable(cuda(y_target, self.cuda), requires_grad=False)
+        else:
+            targeted = False
+
+        h = self.net(x_true)
+        prediction = h.max(1)[1]
+        accuracy = torch.eq(prediction, y_true).float().mean()
+        cost = F.cross_entropy(h, y_true)
+
+        # x_adv, h_adv, h = self.attack.i_fgsm(x_true, y_target, targeted, epsilon, alpha, iteration) \
+        # if iteration else self.attack.fgsm(x_true, y_target, targeted, epsilon)
+        x_adv, h_adv, h = self.attack.fgsm(x_true, y_target, targeted, epsilon)
+
+        prediction_adv = h_adv.max(1)[1]
+        accuracy_adv = torch.eq(prediction_adv, y_true).float().mean()
+        cost_adv = F.cross_entropy(h_adv, y_true)
+
+        print('[BEFORE] accuracy : {:.2f} cost : {:.3f}'.format(accuracy, cost))
+        print('[AFTER] accuracy : {:.2f} cost : {:.3f}'.format(accuracy_adv, cost_adv))
+
+        self.set_mode('train')
+
+
+
+
+    def sample_data(self, num_sample=100):
+        """sample num_sample instances of data (duh)"""
+        total = len(self.data_loader['test'].dataset) # TODO: does this work????
+        seed = torch.FloatTensor(num_sample).uniform_(1, total).long()
+
+        x = self.data_loader['test'].dataset.test_data[seed]
+        x = self.scale(x.float().unsqueeze(1).div(255))
+        y = self.data_loader['test'].dataset.test_labels[seed]
+
+        return x, y
+
+
+    def scale(self, image):
+        return image.mul(2).add(-1)
 
 
 
