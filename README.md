@@ -10,7 +10,7 @@ python main.py --mode train --dataset cifar-100 --D_out 100 --model_name vanilla
 ```
 python main.py --mode train --load_ckpt True --dataset cifar-100 --D_out 100 -model_name vanilla_rbf  
 ```
-3. train a vanilla RBF classifier on Cat v Dog dataset (download from [kaggle link](https://www.kaggle.com/c/dogs-vs-cats/data), unzip and move _train_ and all its content into _advRBF/data_, rename _train_ as _catvdog_)
+3. train a vanilla RBF classifier on Cat v Dog dataset (download from [link](https://www.kaggle.com/c/dogs-vs-cats/data), unzip and move _train_ and all its content into _advRBF/data_, rename _train_ as _catvdog_)
 ```
 python main.py --mode train --load_ckpt True --dataset catvdog -model_name vanilla_rbf  
 ```
@@ -30,13 +30,18 @@ _data_loader.py_: load data for CIFAR10/CIAFAR100/catvdog
 
 ### Results
 Below tables are the pre and post-attack accuracy and loss, measured at testing. All hyperparameters used are as default (eps = 0.02, 10 Gaussian kernels are used in place of _fc2_)
-####CIFAR10
+
+#### CIFAR10
+
 |**Method**|Before Attack Accuracy (loss)|After Attack Accuracy (loss)|
+| ------------- |:-------------:| -----:|
 |Vanilla| 0.64 (1.082) | 0.19 (3.262)|
 |RBF| 0.61 (1.088) | 0.16 (3.377)|
 
-####CIFAR100
+#### CIFAR100
+
 |**Method**|Before Attack Accuracy (loss)|After Attack Accuracy (loss)|
+| ------------- |:-------------:| -----:|
 |Vanilla| 0.29 (3.021) | 0.10 (4.755)|
 |RBF| 0.31 (2.882) | 0.05 (5.855)|
 
