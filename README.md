@@ -1,5 +1,8 @@
-# advRBF
-RBF vs. adversarial example
+# RBF vs. adversarial example
+### Goal
+Utilising the nonlinear nature of RBF, investigate the benefit of replacing fully connected layer by RBF kernels in terms of:
+1. Classification accuracy;
+2. Robustness against adversarial attack.
 
 ### Usage
 1. train a vanilla RBF classifier on CIFAR100 (Le net)
