@@ -9,6 +9,7 @@ from torch.utils.data.sampler import SubsetRandomSampler
 from sklearn import preprocessing
 
 import pickle
+from utils import calculate_normalisation_params
 
 
 class CATDOGDataset(Dataset):
@@ -61,57 +62,7 @@ def get_loader(data_dir,
                dataset="cifar-10",
                random_seed=1,
                shuffle=True,
-               test_size=0.1):
-
-
-    return get_cifar_loader(data_dir, batch_size, dataset) if "cifar" in dataset \
-        else get_customised_loader(data_dir, batch_size, dataset, random_seed, shuffle, test_size)
-
-
-
-def get_cifar_loader(data_dir, batch_size, dataset):
-
-
-    if dataset == "cifar-10":
-        with open(os.path.join(data_dir, dataset + "-batches-py", "batches.meta"), "rb") as f:
-            meta = pickle.load(f)
-        transform = transforms.Compose(
-            [transforms.ToTensor(),
-             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-
-        trainset = datasets.CIFAR10(root=data_dir, train=True,
-                                                download=True, transform=transform)
-        testset = datasets.CIFAR10(root=data_dir, train=False,
-                                               download=True, transform=transform)
-        classes = meta['label_names']
-
-    elif dataset == "cifar-100":
-        with open(os.path.join(data_dir, dataset + "-python", "meta"), "rb") as f:
-            meta = pickle.load(f)
-        transform = transforms.Compose(
-            [transforms.ToTensor(),
-             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-
-        trainset = datasets.CIFAR100(root=data_dir, train=True,
-                                                download=True, transform=transform)
-        testset = datasets.CIFAR100(root=data_dir, train=False,
-                                               download=True, transform=transform)
-        classes = meta['fine_label_names']
-
-    else:
-        raise UnknownDatasetError()
-
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size,
-                                              shuffle=True, num_workers=2)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
-                                             shuffle=False, num_workers=2)
-
-    data_loader = dict()
-    data_loader['train'] = trainloader
-    data_loader['test'] = testloader
-    return data_loader, classes
-
-def get_customised_loader(data_dir, batch_size, dataset, random_seed, shuffle, test_size):
+               trial=1):
     """
     Utility function for loading and returning train and valid
     multi-process iterators over the CIFAR-10 dataset. A sample
@@ -136,13 +87,10 @@ def get_customised_loader(data_dir, batch_size, dataset, random_seed, shuffle, t
     - train_loader: training set iterator.
     - valid_loader: validation set iterator.
     """
-    error_msg = "[!] test_size should be in the range [0, 1]."
-    assert ((test_size >= 0) and (test_size <= 1)), error_msg
 
-    normalize = transforms.Normalize(
-        mean=[0.4914, 0.4822, 0.4465],
-        std=[0.2023, 0.1994, 0.2010],
-    )
+    normalise_vector = calculate_normalisation_params(data_dir)
+    normalize = transforms.Normalize(normalise_vector[0],
+                                     normalise_vector[1])
 
     # define transforms
     test_transform = transforms.Compose([
@@ -159,26 +107,43 @@ def get_customised_loader(data_dir, batch_size, dataset, random_seed, shuffle, t
     ])
 
     # load the dataset
-    train_dataset = CATDOGDataset(data_dir=os.path.join(data_dir, dataset),
-                                           transform=train_transform)
+    if dataset == 'catvdog':
+        train_dataset = CATDOGDataset(data_dir=os.path.join(data_dir, dataset),
+                                               transform=train_transform)
 
-    test_dataset = CATDOGDataset(data_dir=os.path.join(data_dir, dataset),
-                                   transform=test_transform)
+        test_dataset = CATDOGDataset(data_dir=os.path.join(data_dir, dataset),
+                                       transform=test_transform)
+    elif dataset == 'cifar-10':
+        train_dataset = datasets.CIFAR10(root=data_dir, train=True,
+                                         download=True, transform=train_transform)
+        test_dataset = datasets.CIFAR10(root=data_dir, train=False,
+                                        download=True, transform=test_transform)
+    elif dataset == 'cifar-100':
+        train_dataset = datasets.CIFAR100(root=data_dir, train=True,
+                                          download=True, transform=train_transform)
+        test_dataset = datasets.CIFAR100(root=data_dir, train=False,
+                                         download=True, transform=test_transform)
+    else:
+        raise ('unknown dataset')
 
+    dataset_size = len(train_dataset)
+    indices = list(range(dataset_size))
+    # cross validation splits
+    nfolds = 10
+    n = dataset_size // nfolds
+    start_idx = n * (trial - 1)
+    end_idx = start_idx + n
 
-    num_train = len(train_dataset)
-    indices = list(range(num_train))
-    split = int(np.floor(test_size * num_train))
-
-    train_idx, test_idx = indices[split:], indices[:split]
+    train_indices, test_indices = indices[:start_idx] + indices[end_idx:], \
+                                  indices[start_idx:end_idx]
 
     if shuffle:
         np.random.seed(random_seed)
-        np.random.shuffle(train_idx)
-        np.random.shuffle(test_idx)
+        np.random.shuffle(train_indices)
+        np.random.shuffle(test_indices)
 
-    train_sampler = SubsetRandomSampler(train_idx)
-    test_sampler = SubsetRandomSampler(test_idx)
+    train_sampler = SubsetRandomSampler(train_indices)
+    test_sampler = SubsetRandomSampler(test_indices)
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=batch_size, sampler=train_sampler,
@@ -193,8 +158,10 @@ def get_customised_loader(data_dir, batch_size, dataset, random_seed, shuffle, t
     data_loader['train'] = train_loader
     data_loader['test'] = test_loader
 
-    classes = ['cat', 'dog']
+    print("Loaded {} examples, {} used for training and {} for testing.".format(dataset_size,
+                                                                                len(train_indices),
+                                                                                len(test_indices)))
 
-    return data_loader, classes
+    return data_loader
 
 
