@@ -140,7 +140,7 @@ def class_name_look_up(data_dir, dataset):
             meta = pickle.load(f)
         class_names = meta['label_names']
     elif dataset == 'cifar-100':
-        with open(os.path.join(data_dir, dataset + "-batches-py", "batches.meta"), "rb") as f:
+        with open(os.path.join(data_dir, dataset + "-python", "meta"), "rb") as f:
             meta = pickle.load(f)
         class_names = meta['fine_label_names']
     else:

@@ -87,20 +87,20 @@ def get_loader(data_dir,
     - train_loader: training set iterator.
     - valid_loader: validation set iterator.
     """
-
-    normalise_vector = calculate_normalisation_params(data_dir)
+    if len(os.listdir(data_dir)) == 0 or 'cifar' in data_dir:
+        normalise_vector = [[0.5, 0.5, 0.5], [0.5, 0.5, 0.5]]
+    else:
+        normalise_vector = calculate_normalisation_params(data_dir)
     normalize = transforms.Normalize(normalise_vector[0],
                                      normalise_vector[1])
 
     # define transforms
     test_transform = transforms.Compose([
-        transforms.CenterCrop(32),
         transforms.ToTensor(),
         normalize,
     ])
 
     train_transform = transforms.Compose([
-        transforms.RandomCrop(32, padding=4),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         normalize,

@@ -29,7 +29,8 @@ class Solver(object):
         self.batch_size = args.batch_size
         self.lr = args.lr
         self.print_iter = args.print_iter
-        self.data_dir = Path(args.data_dir)
+        self.root_data_dir = args.data_dir
+        self.data_dir = os.path.join(self.root_data_dir, self.dataset)
         self.random_seed = args.random_seed
         self.shuffle = args.shuffle
         self.test_size = args.test_size
@@ -40,6 +41,9 @@ class Solver(object):
         self.ckpt_dir = args.ckpt_dir
         self.stat_dir = args.stat_dir
 
+        # misc
+        self.trial = args.trial
+
         # Initialisation
         self.name_save_dir() # self.save_name, self.normalise_vector, self.data_dir
 
@@ -48,13 +52,12 @@ class Solver(object):
         self.model_stat_path = os.path.join(self.stat_dir, self.save_name, '{}'.format(str(self.trial).zfill(2)))
         os.makedirs(self.model_ckpt_dir, exist_ok=True)
         os.makedirs(self.model_stat_dir, exist_ok=True)
-
-        if not self.data_dir.exists():
-            self.data_dir.mkdir(parents=True, exist_ok=True)
-
-        self.print_summary_ = False if self.mode == 'train' else True
+        os.makedirs(self.data_dir, exist_ok=True)
 
         self.load_from = args.load_from
+        self.best_epoch = 0
+        self.best_test_acc = 0
+        self.is_best_ = False
 
         # FGSM parameters
         self.num_sample = args.num_sample
@@ -63,17 +66,14 @@ class Solver(object):
         self.alpha = args.alpha
         self.iteration = args.iteration
 
-        # misc
-        self.trial = args.trial
-
         # TODO: fix
-        self.classes = class_name_look_up(self.data_dir, self.dataset)
         self.data_loader = get_loader(self.data_dir,
                                       self.batch_size,
                                       self.dataset,
                                       self.random_seed,
                                       self.shuffle,
                                       self.trial)
+        self.classes = class_name_look_up(self.data_dir, self.dataset)
 
 
 
@@ -92,7 +92,14 @@ class Solver(object):
         elif self.model_name == 'vanilla_rbf':
             self.net = cuda(VanillaRBF(self.D_out, self.center_num),
                             self.device)
-
+        # elif self.model_name == 'resnet18':
+        #     self.net = resnet18(pretrained=True)
+        #
+        #
+        #
+        # if self.freeze: # TODO: add freeze
+        #     for param in self.net.parameters():
+        #         param.requires_grad = False
         # init
         self.net.weight_init(_type='kaiming')
 
@@ -218,7 +225,6 @@ class Solver(object):
 
             self.test()
         print(" [*] Training Finished!")
-        self.print_summary_=True
         self.test()
 
     def test(self):
